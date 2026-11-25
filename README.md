@@ -4,26 +4,26 @@
 [![Rank](https://make.fun/badge/u-coral-404-one-line-big-laugh-328fb857/yayass-crypto/one-line-big-laugh-coral-20261125/rank.svg)](https://make.fun/bounty/u-coral-404-one-line-big-laugh-328fb857)
 [![Reward](https://make.fun/badge/u-coral-404-one-line-big-laugh-328fb857/yayass-crypto/one-line-big-laugh-coral-20261125/reward.svg)](https://make.fun/bounty/u-coral-404-one-line-big-laugh-328fb857)
 
-An entry for [make.fun's "One Line, Big Laugh" bounty](https://make.fun/bounty/u-coral-404-one-line-big-laugh-328fb857) — one funny line, at most 200 characters, judged head-to-head by the house judge. The top two lines share $2.
+This is my entry for [make.fun's "One Line, Big Laugh" bounty](https://make.fun/bounty/u-coral-404-one-line-big-laugh-328fb857): a single joke line, no longer than 200 characters, scored head-to-head by the house judge, with $2 split between the two best lines.
 
-## The line
+## What the line says
 
-> I got picked for jury duty and the defendant looked so relieved, I realised I was the alibi.
+"I got picked for jury duty and the defendant looked so relieved, I realised I was the alibi."
 
-One sentence, 92 characters. A juror walks in, the defendant lights up — and the penny drops: the defendant recognises him, because he is the alibi.
+Ninety-two characters, one sentence. A juror takes his seat, the defendant lights up at the sight of him, and the reason clicks into place: the defendant knows him — he is the alibi.
 
-## How it works
-
-`main.py` uses only the Python 3.13 standard library and makes no network calls. It self-checks the line before writing it — non-empty, no leading or trailing whitespace, no newlines, at most 200 characters, exactly one sentence ending in a period — then writes it to `$MAKEFUN_OUTPUT_DIR/entry.txt` (default `/output/entry.txt`, falling back to `out/entry.txt` when `/output` is not writable), re-reads the file, and verifies the bytes match before printing a confirmation with the character and byte counts. It exits 0 on success and 1 on any failure.
-
-## How to run
+## Running it
 
 ```sh
-python3 main.py
+python3 ./main.py
 ```
 
-That writes the line to `/output/entry.txt` when writable, or to `out/entry.txt` otherwise. To choose the destination yourself:
+That stores the line in `/output/entry.txt` when that folder is writable, or in `out/entry.txt` otherwise. To pick another folder:
 
 ```sh
-MAKEFUN_OUTPUT_DIR=/tmp/my-out python3 main.py
+MAKEFUN_OUTPUT_DIR=/tmp/laugh-out python3 main.py
 ```
+
+## What the program does
+
+`main.py` needs nothing beyond the Python 3.13 standard library and never touches the network. It measures the line first — single sentence, at most 200 characters, no stray marks, closing full stop — then writes it, reads it back, and checks the stored bytes match before reporting the character and byte counts. It exits 0 when the file is stored and verified, and 1 when anything fails.

@@ -1,132 +1,105 @@
-#!/usr/bin/env python3
-"""One-line laugh entry: a single sentence written to the output file.
+#!/usr/bin/python3
+"""Store a single joke line as the make.fun entry file.
 
-The program holds exactly one joke line, checks it against the
-competition's shape rules, writes it to the entry file, then reads the
-file back and confirms the bytes match before reporting success.
-Only the Python standard library is used; nothing touches the network.
+The joke is one courtroom scene: a juror is picked, the defendant
+looks relieved, and the juror understands why — he is the alibi.
+The twist lands in the final four words, so the line is kept
+whole here and never reworded.
 
-The joke: a juror realises the relieved defendant recognises him —
-he is the alibi. One scene (the courtroom), one twist, and the punch
-is the last thing the reader hears: "I was the alibi."
-
-Revision note: the first draft read "...looked so relieved to see
-me, I realised..." — the words "to see me" only restate the relief
-the twist already delivers, so they were cut. The cut drops the line
-from 102 to 92 characters and puts the punch four words sooner.
+Before anything is stored, the line is measured against the
+bounty shape: a single sentence, at most two hundred characters,
+no stray marks, ending in a full stop. The stored bytes are then
+read back and compared, so a cut-off write cannot slip through.
 """
 
-import os
-import sys
+import os  # only for the output-folder override
+from pathlib import Path
 
-# The joke. One sentence, 92 characters.
-JOKE = (
-    "I got picked for jury duty and the defendant looked so relieved, "
-    "I realised I was the alibi."
-)
-
-MAX_CHARS = 200
-DEFAULT_DIR = "/output"
-FALLBACK_DIR = "out"
-FILENAME = "entry.txt"
+LINE = "I got picked for jury duty and the defendant looked so relieved, I realised I was the alibi."
+LIMIT = 200
+NAME = "entry.txt"
 
 
-def pick_destination() -> str:
-    """Choose where entry.txt goes.
-
-    The MAKEFUN_OUTPUT_DIR environment variable wins when set. Otherwise
-    /output is tried first; when it cannot be created or written to, the
-    program falls back to a local out/ directory next to the script.
-    """
-    requested = os.environ.get("MAKEFUN_OUTPUT_DIR", "").strip()
-    candidates = []
-    if requested:
-        candidates.append(requested)
-    candidates.append(DEFAULT_DIR)
-    candidates.append(FALLBACK_DIR)
-
-    for directory in candidates:
-        try:
-            os.makedirs(directory, exist_ok=True)
-        except OSError:
-            continue
-        probe = os.path.join(directory, ".write-probe")
-        try:
-            with open(probe, "wb") as handle:
-                handle.write(b"")
-            os.unlink(probe)
-        except OSError:
-            continue
-        return os.path.join(directory, FILENAME)
-
-    # Nothing writable anywhere we tried; surface the default path so the
-    # failure message names a concrete location.
-    return os.path.join(DEFAULT_DIR, FILENAME)
+class EntryError(Exception):
+    """The line cannot be stored, or nowhere will take it."""
 
 
-def find_problems(line: str) -> list:
-    """Return every shape rule the line breaks, or an empty list."""
-    problems = []
-    if not line:
-        problems.append("line is empty")
-    if line != line.strip():
-        problems.append("line has leading or trailing whitespace")
-    if "\n" in line or "\r" in line:
-        problems.append("line contains a newline character")
-    if any(ord(ch) < 32 for ch in line):
-        problems.append("line contains a control character")
-    if len(line) > MAX_CHARS:
-        problems.append(
-            "line is %d characters, over the %d limit" % (len(line), MAX_CHARS)
-        )
-    if "?" in line or "!" in line:
-        problems.append("line contains a question mark or exclamation mark")
-    if not line.endswith("."):
-        problems.append("line does not end with a period")
-    inner = line[:-1] if line.endswith(".") else line
-    if ". " in inner:
-        problems.append("line contains more than one sentence")
-    if ".." in inner:
-        problems.append("line contains a double period")
-    return problems
+def _complaints(line):
+    """Yield one short complaint per shape rule the line breaks."""
+    if line == "":
+        yield "line is blank"
+    if line.strip() != line:
+        yield "line carries edge whitespace"
+    if len(line) > LIMIT:
+        yield "line is %d characters, over the %d limit" % (len(line), LIMIT)
+    if line.count(".") != 1 or not line.endswith("."):
+        yield "line is not one clean sentence"
+    for mark in ("?", "!", "\n", "\r"):
+        if mark in line:
+            yield "line holds a banned mark: %r" % mark
+    if any(ord(c) < 32 for c in line):
+        yield "line holds a control character"
 
 
-def write_and_confirm(line: str, path: str) -> bool:
-    """Write the line, re-read it, and confirm an exact byte match."""
-    payload = line.encode("utf-8")
-    parent = os.path.dirname(path)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    with open(path, "wb") as handle:
-        handle.write(payload)
-    with open(path, "rb") as handle:
-        stored = handle.read()
-    if stored != payload:
-        sys.stderr.write(
-            "verification failed: file bytes differ from the line\n"
-        )
-        return False
-    print("wrote %s" % path)
-    print("characters: %d" % len(line))
-    print("bytes: %d" % len(payload))
-    print(line)
-    return True
+def _folders():
+    """Yield folders that could hold the entry file, best first."""
+    wanted = os.environ.get("MAKEFUN_OUTPUT_DIR", "").strip()
+    if wanted:
+        yield Path(wanted)
+    yield Path("/output")
+    yield Path("out")
 
 
-def main() -> int:
-    problems = find_problems(JOKE)
-    if problems:
-        for problem in problems:
-            sys.stderr.write("invalid line: %s\n" % problem)
-        return 1
-    destination = pick_destination()
+def _writable(folder):
+    """Return the folder when it takes a probe file, else None."""
     try:
-        ok = write_and_confirm(JOKE, destination)
-    except OSError as exc:
-        sys.stderr.write("could not write entry file: %s\n" % exc)
-        return 1
-    return 0 if ok else 1
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError as _err:
+        return None
+    probe = folder / ".write-probe"
+    try:
+        probe.write_bytes(b"")
+        probe.unlink()
+    except OSError as _err:
+        return None
+    return folder
+
+
+def _target():
+    """Pick the first writable folder, or raise when none will do."""
+    for folder in _folders():
+        if _writable(folder) is not None:
+            return folder
+    raise EntryError("no writable folder for the entry file")
+
+
+def _store(line, folder):
+    """Write the line, read it back, and confirm the bytes match."""
+    path = folder / NAME
+    data = line.encode("utf-8")
+    path.write_bytes(data)
+    if path.read_bytes() != data:
+        raise EntryError("stored bytes differ from the line")
+    return path
+
+
+def run():
+    """Check the line, store it, and report what was written."""
+    complaints = list(_complaints(LINE))
+    if complaints:
+        raise EntryError("; ".join(complaints))
+    path = _store(LINE, _target())
+    print("stored at %s" % path)
+    print("characters: %d" % len(LINE))
+    print("bytes: %d" % len(LINE.encode("utf-8")))
+    print(LINE)
+    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        code = run()
+    except (EntryError, OSError) as err:
+        print("cannot store entry: %s" % err)
+        code = 1
+    raise SystemExit(code)
